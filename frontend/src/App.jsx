@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { Upload, FileText, Download, Loader2 } from 'lucide-react';
+import { Upload, FileText, Download, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 
 function App() {
   const [facturas, setFacturas] = useState([]);
@@ -8,190 +8,193 @@ function App() {
   const [selectedFactura, setSelectedFactura] = useState(null);
   const [error, setError] = useState('');
 
-  // --- FUNCIÓN 1: Generar y Descargar CSV (Ya la tenías) ---
+  // Detectar URL: Si estamos en Docker usa el nombre del servicio, si no, localhost
+  const apiUrl = import.meta.env.VITE_API_URL || 'https://ys4lryv53qrop5qj7ewtzcgng40twztf.lambda-url.us-east-1.on.aws/';
+
   const downloadCSV = () => {
     if (facturas.length === 0) return;
-
     const rows = [];
-    const headers = [
-      "Archivo", "Nro_Factura", "Fecha", "Cliente", "NIT",
-      "Item_Desc", "Cantidad", "Precio_Unit", "Subtotal_Item", "Total_Factura"
-    ];
-
+    const headers = ["Archivo", "Nro_Factura", "Fecha", "Cliente", "NIT", "Item_Desc", "Cantidad", "Precio_Unit", "Subtotal_Item", "Total_Factura"];
     rows.push(headers.join(","));
-
     facturas.forEach(f => {
       f.items.forEach(item => {
-        const row = [
-          f.nombreArchivo,
-          f.numero_factura,
-          f.fecha_emision,
-          `"${f.cliente.nombre}"`,
-          f.cliente.identificacion,
-          `"${item.descripcion}"`,
-          item.cantidad,
-          item.precio_unitario,
-          item.subtotal_item,
-          f.montos.total_general
-        ];
+        const row = [f.nombreArchivo, f.numero_factura, f.fecha_emision, `"${f.cliente.nombre}"`, f.cliente.identificacion, `"${item.descripcion}"`, item.cantidad, item.precio_unitario, item.subtotal_item, f.montos.total_general];
         rows.push(row.join(","));
       });
     });
-
-    const csvContent = rows.join("\n");
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
+    const blob = new Blob([rows.join("\n")], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", "reporte_facturas_ia.csv");
+    link.href = URL.createObjectURL(blob);
+    link.download = "reporte_facturas.csv";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
-  // --- FUNCIÓN 2: Subida de Archivos (AQUÍ ESTÁ EL CAMBIO IMPORTANTE) ---
   const handleFileUpload = async (e) => {
     const files = Array.from(e.target.files);
     setLoading(true);
     setError('');
 
-    // Toma la URL de la variable de entorno (Vercel) o usa localhost
-    const apiUrl = import.meta.env.VITE_API_URL || 'https://ys4lryv53qrop5qj7ewtzcgng40twztf.lambda-url.us-east-1.on.aws/';
-
     for (const file of files) {
       try {
-        // 1. Leemos el archivo TXT aquí mismo en el navegador
-        const textContent = await new Promise((resolve, reject) => {
+        const textContent = await new Promise((resolve) => {
           const reader = new FileReader();
           reader.onload = (e) => resolve(e.target.result);
-          reader.onerror = (e) => reject(e);
           reader.readAsText(file);
         });
 
-        // 2. Enviamos un JSON con el texto dentro del campo "body"
-        // Esto se alinea perfecto con tu nuevo lambda_function.py
+        // Intentamos enviar a la API
         const response = await axios.post(apiUrl,
           { body: textContent },
           { headers: { 'Content-Type': 'application/json' } }
         );
 
-        // 3. Guardamos el resultado
-        // (La Lambda devuelve el JSON listo en response.data)
         setFacturas(prev => [...prev, { ...response.data, nombreArchivo: file.name }]);
-
       } catch (err) {
         console.error(err);
-        const errorMsg = err.response?.data?.detail || err.message;
-        setError(`Error en ${file.name}: ${errorMsg}`);
+        setError(`Error al procesar ${file.name}. Asegúrate de que el Backend esté corriendo.`);
       }
     }
     setLoading(false);
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8 font-sans text-gray-800">
-      <div className="max-w-6xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-indigo-700">🧾 Gestor de Facturas AI</h1>
+    <div className="min-h-screen bg-slate-50 p-8 font-sans text-slate-800">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-10 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+          <div className="flex items-center gap-3">
+            <div className="bg-emerald-100 p-2 rounded-lg">
+              <FileText className="w-8 h-8 text-emerald-600" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-slate-800">Facturas AI</h1>
+              <p className="text-sm text-slate-500">Sistema de extracción inteligente</p>
+            </div>
+          </div>
 
           {facturas.length > 0 && (
-            <button
-              onClick={downloadCSV}
-              className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"
-            >
-              <Download className="w-5 h-5" /> Descargar CSV
+            <button onClick={downloadCSV} className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-xl font-medium transition-all shadow-md hover:shadow-lg">
+              <Download className="w-4 h-4" /> Exportar CSV
             </button>
           )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
 
-          <div className="md:col-span-1 space-y-6">
-            <div className="bg-white p-6 rounded-xl shadow-sm border-2 border-dashed border-indigo-200 hover:border-indigo-400 transition-colors text-center">
-              <input
-                type="file" multiple accept=".txt"
-                onChange={handleFileUpload}
-                className="hidden" id="file-upload"
-              />
+          {/* Sidebar / Upload Area */}
+          <div className="lg:col-span-4 space-y-6">
+            <div className="bg-white p-8 rounded-2xl shadow-sm border-2 border-dashed border-emerald-100 hover:border-emerald-300 transition-all text-center group">
+              <input type="file" multiple accept=".txt" onChange={handleFileUpload} className="hidden" id="file-upload" />
               <label htmlFor="file-upload" className="cursor-pointer flex flex-col items-center">
-                <Upload className="w-12 h-12 text-indigo-500 mb-3" />
-                <span className="font-medium text-gray-600">Sube tus facturas (.txt)</span>
+                <div className="bg-emerald-50 group-hover:bg-emerald-100 p-4 rounded-full transition-colors mb-4">
+                  <Upload className="w-8 h-8 text-emerald-600" />
+                </div>
+                <span className="font-semibold text-slate-700">Subir Facturas (.txt)</span>
+                <span className="text-sm text-slate-400 mt-1">Arrastra o haz clic aquí</span>
               </label>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-              <div className="p-4 bg-gray-100 font-semibold border-b flex justify-between items-center">
-                <span>Procesadas ({facturas.length})</span>
+            {/* Lista de Procesados */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+              <div className="p-4 bg-slate-50 border-b border-slate-100 font-semibold text-slate-600 text-sm uppercase tracking-wide flex justify-between">
+                <span>Historial</span>
+                <span className="bg-slate-200 text-slate-600 px-2 rounded-md text-xs py-0.5">{facturas.length}</span>
               </div>
-              <div className="divide-y max-h-[500px] overflow-y-auto">
+              <div className="divide-y divide-slate-50 max-h-[600px] overflow-y-auto">
                 {facturas.map((f, idx) => (
-                  <div
-                    key={idx}
-                    onClick={() => setSelectedFactura(f)}
-                    className={`p-4 cursor-pointer hover:bg-indigo-50 transition-colors ${selectedFactura === f ? 'bg-indigo-50 border-l-4 border-indigo-500' : ''}`}
+                  <div key={idx} onClick={() => setSelectedFactura(f)}
+                    className={`p-4 cursor-pointer transition-all hover:bg-slate-50 ${selectedFactura === f ? 'bg-emerald-50/60 border-l-4 border-emerald-500' : 'border-l-4 border-transparent'}`}
                   >
-                    <div className="font-bold text-gray-800">{f.cliente.nombre}</div>
-                    <div className="flex justify-between mt-1">
-                      <span className="text-xs text-gray-500">{f.numero_factura}</span>
-                      <span className="font-mono font-bold text-green-600 text-sm">${f.montos.total_general.toLocaleString()}</span>
+                    <div className="font-bold text-slate-800 text-sm mb-1">{f.cliente.nombre}</div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded">{f.numero_factura}</span>
+                      <span className="font-mono font-bold text-emerald-600 text-sm">${f.montos.total_general.toLocaleString()}</span>
                     </div>
                   </div>
                 ))}
                 {loading && (
-                  <div className="p-4 flex justify-center text-indigo-600">
-                    <Loader2 className="animate-spin w-5 h-5 mr-2" /> Procesando...
+                  <div className="p-6 flex flex-col items-center justify-center text-emerald-600 bg-slate-50/50">
+                    <Loader2 className="animate-spin w-6 h-6 mb-2" />
+                    <span className="text-sm font-medium">Analizando documentos...</span>
+                  </div>
+                )}
+                {facturas.length === 0 && !loading && (
+                  <div className="p-8 text-center text-slate-400 text-sm">
+                    No hay facturas procesadas aún.
                   </div>
                 )}
               </div>
             </div>
-            {error && <div className="text-red-500 text-sm bg-red-50 p-3 rounded">{error}</div>}
+            {error && (
+              <div className="flex items-start gap-3 bg-red-50 p-4 rounded-xl border border-red-100 text-red-600 text-sm">
+                <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
           </div>
 
-          <div className="md:col-span-2">
+          {/* Main Viewer */}
+          <div className="lg:col-span-8">
             {selectedFactura ? (
-              <div className="bg-white rounded-xl shadow-lg p-8 border border-gray-100">
-                <div className="flex justify-between items-center mb-6 pb-6 border-b">
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                {/* Factura Header */}
+                <div className="p-8 bg-slate-50/50 border-b border-slate-100 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
                   <div>
-                    <h2 className="text-2xl font-bold">{selectedFactura.cliente.nombre}</h2>
-                    <div className="text-gray-500 flex items-center mt-1">
-                      <FileText className="w-4 h-4 mr-1" /> {selectedFactura.numero_factura}
+                    <h2 className="text-2xl font-bold text-slate-800">{selectedFactura.cliente.nombre}</h2>
+                    <div className="flex items-center gap-4 mt-2 text-sm text-slate-500">
+                      <span className="flex items-center gap-1"><FileText className="w-4 h-4" /> {selectedFactura.numero_factura}</span>
+                      <span>•</span>
+                      <span>{selectedFactura.fecha_emision}</span>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="text-sm text-gray-500">Total a Pagar</div>
-                    <div className="text-3xl font-bold text-indigo-600">
+                  <div className="text-right bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
+                    <div className="text-xs text-slate-400 uppercase font-semibold mb-1">Total a Pagar</div>
+                    <div className="text-3xl font-bold text-emerald-600 tracking-tight">
                       ${selectedFactura.montos.total_general.toLocaleString()}
                     </div>
                   </div>
                 </div>
 
+                {/* Tabla de Items */}
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm text-left">
-                    <thead className="bg-gray-50 text-gray-600 uppercase">
+                    <thead className="bg-slate-50 text-slate-500 uppercase text-xs tracking-wider font-semibold border-b border-slate-100">
                       <tr>
-                        <th className="px-4 py-3 rounded-l-lg">Descripción</th>
-                        <th className="px-4 py-3 text-center">Cant.</th>
-                        <th className="px-4 py-3 text-right">Unitario</th>
-                        <th className="px-4 py-3 text-right rounded-r-lg">Total</th>
+                        <th className="px-6 py-4">Descripción</th>
+                        <th className="px-6 py-4 text-center">Cant.</th>
+                        <th className="px-6 py-4 text-right">Precio Unit.</th>
+                        <th className="px-6 py-4 text-right">Total</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y">
+                    <tbody className="divide-y divide-slate-50">
                       {selectedFactura.items.map((item, i) => (
-                        <tr key={i} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 font-medium">{item.descripcion}</td>
-                          <td className="px-4 py-3 text-center">{item.cantidad}</td>
-                          <td className="px-4 py-3 text-right">${item.precio_unitario.toLocaleString()}</td>
-                          <td className="px-4 py-3 text-right font-semibold">${item.subtotal_item.toLocaleString()}</td>
+                        <tr key={i} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="px-6 py-4 font-medium text-slate-700">{item.descripcion}</td>
+                          <td className="px-6 py-4 text-center text-slate-500">{item.cantidad}</td>
+                          <td className="px-6 py-4 text-right text-slate-500">${item.precio_unitario.toLocaleString()}</td>
+                          <td className="px-6 py-4 text-right font-bold text-slate-700">${item.subtotal_item.toLocaleString()}</td>
                         </tr>
                       ))}
                     </tbody>
+                    <tfoot className="bg-slate-50/50 border-t border-slate-100">
+                      <tr>
+                        <td colSpan="3" className="px-6 py-3 text-right text-slate-500">Subtotal</td>
+                        <td className="px-6 py-3 text-right text-slate-700 font-medium">${selectedFactura.montos.subtotal.toLocaleString()}</td>
+                      </tr>
+                      <tr>
+                        <td colSpan="3" className="px-6 py-3 text-right text-slate-500">Impuestos</td>
+                        <td className="px-6 py-3 text-right text-slate-700 font-medium">${selectedFactura.montos.impuestos.toLocaleString()}</td>
+                      </tr>
+                    </tfoot>
                   </table>
                 </div>
               </div>
             ) : (
-              <div className="h-full flex flex-col items-center justify-center text-gray-400 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50 min-h-[400px]">
-                <FileText className="w-16 h-16 mb-4 opacity-20" />
-                <p>Selecciona una factura para ver el detalle</p>
+              <div className="h-full flex flex-col items-center justify-center text-slate-300 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/30 min-h-[500px]">
+                <CheckCircle className="w-20 h-20 mb-4 opacity-20" />
+                <p className="font-medium">Selecciona una factura para ver el detalle</p>
               </div>
             )}
           </div>
