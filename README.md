@@ -73,31 +73,3 @@ Los LLMs no son determinista por lo que Pydantic actúa como un "firewall lógic
 #### Infraestructura Frontend (AWS Lightsail)
 Decisión: Despliegue manual en una maquina Ligthsail por su facilidad de despliegue y control manual, ademas de su bajo costo.
 
-
-
-#### 2. Correo de Entrega (Template)
-
-**Asunto:** Entrega Prueba Técnica - Andres David Caro Mora.
-
-**Cuerpo:**
-
-Hola Paola,
-Espero que estés muy bien.
-Adjunto la solución al reto técnico de extracción de facturas. He implementado una solución completa desplegada en AWS.
-**Resumen de la entrega:**
-* **Repositorio:** https://github.com/AnCaroM/reto-facturas-ia
-* **Demo Online:** http://13.217.0.251/
-
-**Destacados de la arquitectura:**
-* **Backend Serverless:** Implementado en AWS Lambda usando imágenes Docker (ECR) para garantizar consistencia y escalabilidad.
-* **Frontend:** Desplegado en un servidor Linux (AWS Lightsail) configurado manualmente con Nginx.
-* **IA:** Uso de GPT-4o-mini con validación estricta de esquemas (Pydantic) para asegurar datos estructurados y manejo de errores robusto.
-
-
-
-Saludos,
-Andres David Caro Mora
-3212458207
-https://www.linkedin.com/in/andres-david-caro-mora-1a3174275/
-
----
