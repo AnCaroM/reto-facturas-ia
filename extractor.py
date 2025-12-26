@@ -1,30 +1,42 @@
+from openai import OpenAI
 import os
 from dotenv import load_dotenv
-from openai import OpenAI
-from models import Factura
+from models import InvoiceData
 
+# Cargar variables de entorno (aunque en Lambda se inyectan solas, esto ayuda en local)
 load_dotenv()
-client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
-def extraer_informacion_factura(texto_factura: str) -> Factura:
+# Cliente de OpenAI
+# Nota: En Lambda, la key viene de las variables de entorno que configuramos
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+def extract_invoice_data(invoice_text: str):
     """
-    Recibe el texto crudo de una factura y retorna un objeto Factura validado.
+    Función principal que llama a OpenAI para extraer datos.
+    Debe llamarse 'extract_invoice_data' para que lambda_function.py la encuentre.
     """
-    prompt_system = """
-    Eres un asistente contable experto. Tu misión es extraer datos de facturas en texto plano.
-    Instrucciones críticas:
-    1. Si hay valores monetarios, conviértelos a float (ej: '$ 2.500.000' -> 2500000.0).
-    2. Las fechas deben estar estrictamente en formato YYYY-MM-DD.
-    3. Extrae todas las líneas de items sin omitir ninguna.
+    
+    # Prompt del sistema
+    system_prompt = """
+    Eres un experto en extracción de datos de facturas.
+    Tu tarea es extraer la información de la factura proporcionada y devolverla EXCLUSIVAMENTE en formato JSON.
+    El JSON debe cumplir estrictamente con el esquema definido.
+    Si algún campo no está presente, usa null o una cadena vacía, pero no inventes datos.
     """
 
-    completion = client.beta.chat.completions.parse(
-        model="gpt-4o-mini",  # Modelo económico y rápido
-        messages=[
-            {"role": "system", "content": prompt_system},
-            {"role": "user", "content": f"Analiza la siguiente factura:\n\n{texto_factura}"},
-        ],
-        response_format=Factura,
-    )
+    try:
+        completion = client.beta.chat.completions.parse(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": invoice_text},
+            ],
+            response_format=InvoiceData,
+        )
 
-    return completion.choices[0].message.parsed
+        # Devolvemos el objeto Pydantic (lambda_function se encarga de convertirlo a dict)
+        return completion.choices[0].message.parsed
+
+    except Exception as e:
+        print(f"Error en OpenAI: {e}")
+        raise e

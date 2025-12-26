@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { Upload, FileText, Download, Loader2 } from 'lucide-react'; // Agregamos icono Download
+import { Upload, FileText, Download, Loader2 } from 'lucide-react';
 
 function App() {
   const [facturas, setFacturas] = useState([]);
@@ -8,28 +8,25 @@ function App() {
   const [selectedFactura, setSelectedFactura] = useState(null);
   const [error, setError] = useState('');
 
-  // --- NUEVA FUNCIÓN: Generar y Descargar CSV ---
+  // --- FUNCIÓN 1: Generar y Descargar CSV (Ya la tenías) ---
   const downloadCSV = () => {
     if (facturas.length === 0) return;
 
-    // 1. Aplanar los datos (igual que en tu script de Python)
     const rows = [];
-    // Encabezados del CSV
     const headers = [
       "Archivo", "Nro_Factura", "Fecha", "Cliente", "NIT",
       "Item_Desc", "Cantidad", "Precio_Unit", "Subtotal_Item", "Total_Factura"
     ];
 
-    rows.push(headers.join(",")); // Agregar encabezados
+    rows.push(headers.join(","));
 
-    // 2. Recorrer facturas e items
     facturas.forEach(f => {
       f.items.forEach(item => {
         const row = [
           f.nombreArchivo,
           f.numero_factura,
           f.fecha_emision,
-          `"${f.cliente.nombre}"`, // Comillas para evitar problemas si el nombre tiene comas
+          `"${f.cliente.nombre}"`,
           f.cliente.identificacion,
           `"${item.descripcion}"`,
           item.cantidad,
@@ -41,7 +38,6 @@ function App() {
       });
     });
 
-    // 3. Crear el archivo Blob y forzar descarga
     const csvContent = rows.join("\n");
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -52,23 +48,41 @@ function App() {
     link.click();
     document.body.removeChild(link);
   };
-  // ------------------------------------------------
 
+  // --- FUNCIÓN 2: Subida de Archivos (AQUÍ ESTÁ EL CAMBIO IMPORTANTE) ---
   const handleFileUpload = async (e) => {
     const files = Array.from(e.target.files);
     setLoading(true);
     setError('');
 
-    for (const file of files) {
-      const formData = new FormData();
-      formData.append('file', file);
+    // Toma la URL de la variable de entorno (Vercel) o usa localhost
+    const apiUrl = import.meta.env.VITE_API_URL || 'https://ys4lryv53qrop5qj7ewtzcgng40twztf.lambda-url.us-east-1.on.aws/';
 
+    for (const file of files) {
       try {
-        const response = await axios.post('https://ys4lryv53qrop5qj7ewtzcgng40twztf.lambda-url.us-east-1.on.aws/', formData);
+        // 1. Leemos el archivo TXT aquí mismo en el navegador
+        const textContent = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve(e.target.result);
+          reader.onerror = (e) => reject(e);
+          reader.readAsText(file);
+        });
+
+        // 2. Enviamos un JSON con el texto dentro del campo "body"
+        // Esto se alinea perfecto con tu nuevo lambda_function.py
+        const response = await axios.post(apiUrl,
+          { body: textContent },
+          { headers: { 'Content-Type': 'application/json' } }
+        );
+
+        // 3. Guardamos el resultado
+        // (La Lambda devuelve el JSON listo en response.data)
         setFacturas(prev => [...prev, { ...response.data, nombreArchivo: file.name }]);
+
       } catch (err) {
         console.error(err);
-        setError(`Error al procesar ${file.name}. ¿Backend corriendo?`);
+        const errorMsg = err.response?.data?.detail || err.message;
+        setError(`Error en ${file.name}: ${errorMsg}`);
       }
     }
     setLoading(false);
@@ -80,7 +94,6 @@ function App() {
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold text-indigo-700">🧾 Gestor de Facturas AI</h1>
 
-          {/* Botón de descarga condicional */}
           {facturas.length > 0 && (
             <button
               onClick={downloadCSV}
@@ -93,9 +106,7 @@ function App() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
 
-          {/* COLUMNA IZQUIERDA */}
           <div className="md:col-span-1 space-y-6">
-            {/* Zona de Carga */}
             <div className="bg-white p-6 rounded-xl shadow-sm border-2 border-dashed border-indigo-200 hover:border-indigo-400 transition-colors text-center">
               <input
                 type="file" multiple accept=".txt"
@@ -108,7 +119,6 @@ function App() {
               </label>
             </div>
 
-            {/* Lista */}
             <div className="bg-white rounded-xl shadow-sm overflow-hidden">
               <div className="p-4 bg-gray-100 font-semibold border-b flex justify-between items-center">
                 <span>Procesadas ({facturas.length})</span>
@@ -137,7 +147,6 @@ function App() {
             {error && <div className="text-red-500 text-sm bg-red-50 p-3 rounded">{error}</div>}
           </div>
 
-          {/* COLUMNA DERECHA: Detalle */}
           <div className="md:col-span-2">
             {selectedFactura ? (
               <div className="bg-white rounded-xl shadow-lg p-8 border border-gray-100">
