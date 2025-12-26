@@ -64,7 +64,7 @@ function App() {
       formData.append('file', file);
 
       try {
-        const response = await axios.post('http://localhost:8000/procesar', formData);
+        const response = await axios.post('https://ys4lryv53qrop5qj7ewtzcgng40twztf.lambda-url.us-east-1.on.aws/', formData);
         setFacturas(prev => [...prev, { ...response.data, nombreArchivo: file.name }]);
       } catch (err) {
         console.error(err);
